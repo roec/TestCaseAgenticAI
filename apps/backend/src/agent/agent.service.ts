@@ -1,14 +1,44 @@
 import { Injectable } from '@nestjs/common';
-import { GenerateTestCaseDto } from '../common/dto/generate-test-case.dto';
+import { GenerateTestCaseDto, GenerationMode } from '../common/dto/generate-test-case.dto';
 import { LlmService } from '../llm/llm.service';
 import { PostmanService } from '../postman/postman.service';
-import { RagService } from '../rag/rag.service';
+import { RagChunk, RagService } from '../rag/rag.service';
 import { SqlService } from '../sql/sql.service';
 
-interface AgentLog {
+export interface AgentLog {
   agent: string;
   message: string;
   timestamp: string;
+}
+
+export interface GeneratedTestCase {
+  testCaseId: string;
+  scenario: string;
+  description: string;
+  input: Record<string, unknown>;
+  steps: string[];
+  expected: Record<string, unknown>;
+  functionalRulesMapped: string[];
+  technicalModulesMapped: string[];
+  postman: Record<string, unknown> | null;
+  sqlValidation: string[];
+}
+
+export interface CoverageSummary {
+  functionalCoveragePercent: number;
+  technicalCoveragePercent: number;
+  overallCoveragePercent: number;
+  uncoveredAreas: string[];
+}
+
+export interface SupervisorResult {
+  mode: GenerationMode;
+  llmSummary: string;
+  retrievedChunks: RagChunk[];
+  coverage: CoverageSummary;
+  testCases: GeneratedTestCase[];
+  postmanCollection: Record<string, unknown>;
+  logs: AgentLog[];
 }
 
 @Injectable()
@@ -20,7 +50,7 @@ export class AgentService {
     private readonly sqlService: SqlService
   ) {}
 
-  async runSupervisor(dto: GenerateTestCaseDto) {
+  async runSupervisor(dto: GenerateTestCaseDto): Promise<SupervisorResult> {
     const logs: AgentLog[] = [];
     const log = (agent: string, message: string) => logs.push({ agent, message, timestamp: new Date().toISOString() });
 
@@ -40,7 +70,7 @@ export class AgentService {
     log('Test Design Agent', 'Generated scenario blueprint from LLM provider');
 
     const scenarios = ['Normal flow', 'Edge case', 'Exception flow', 'Risk-based high-volume flow'];
-    const testCases = scenarios.map((scenario, index) => {
+    const testCases: GeneratedTestCase[] = scenarios.map((scenario, index) => {
       const testCaseId = `TC-S89-${String(index + 1).padStart(3, '0')}`;
       return {
         testCaseId,
@@ -71,7 +101,7 @@ export class AgentService {
     log('Postman Generator Agent', dto.includePostman ? 'Attached executable API requests' : 'Skipped');
     log('SQL Generator Agent', dto.includeSQL ? 'Attached AS400 DB2 SQL validation queries' : 'Skipped');
 
-    const coverage = {
+    const coverage: CoverageSummary = {
       functionalCoveragePercent: requirementRules.length ? 92 : 70,
       technicalCoveragePercent: technicalInsights.length ? 90 : 68,
       overallCoveragePercent: 91,

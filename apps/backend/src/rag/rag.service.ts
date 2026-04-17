@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DocumentService } from '../document/document.service';
 
-interface RagChunk {
+export interface RagChunk {
   id: string;
   section: string;
   sourceDocument: string;
